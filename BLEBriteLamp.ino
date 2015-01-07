@@ -166,7 +166,7 @@ void loop()
           delayMillis = 1000;  // millisecond delay; default 1 second
         }
         else {
-          delayMillis = speed * 100;
+          delayMillis = speed * 4;
         }
         currentColor = 0;
 //        Serial.print("Delay is "); 
@@ -211,5 +211,6 @@ void loop()
   ble_do_events();
   buf_len = 0;
 }
+
 
 
