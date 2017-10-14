@@ -34,15 +34,18 @@ Portions Copyright (c) 2012, 2013 RedBearLab
 #include <RBL_nRF8001.h>
 
 #define PROTOCOL_MAJOR_VERSION   0 //
-#define PROTOCOL_MINOR_VERSION   0 //
+#define PROTOCOL_MINOR_VERSION   1 //
 #define PROTOCOL_BUGFIX_VERSION  2 // bugfix
 
 // Note: the blend micro uses pins 6 and 7 for bluetooth; the blend uses 8 / 9.  Adjust these as needed.
 // standard colors on the Shiftbrite cables are D: white, L: blue, E: green, C: yellow.
-#define DATA_PIN    5
+#define DATA_PIN    9
 #define LATCH_PIN  10
 #define ENABLE_PIN 11
 #define CLOCK_PIN  12
+// override the default REQN and RDYN (new for minor version 1)
+#define REQN		6
+#define RDYN 		7
 
 #define MAX_COLORS 20
 #define RED_IDX   0
@@ -52,6 +55,7 @@ Portions Copyright (c) 2012, 2013 RedBearLab
 ShiftBrite shift(DATA_PIN, LATCH_PIN, ENABLE_PIN, CLOCK_PIN);
 byte colors[MAX_COLORS][3];  // longest chain
 int delayMillis;
+int last = 0;
 int lightCount;
 int currentColor;
 
@@ -63,9 +67,10 @@ void setup()
   ble_set_name("BriteLamp");
   currentColor = -1;
   lightCount = 0;
-
+  ble_set_pins(REQN, RDYN);
   // Init. and start BLE library.
   ble_begin();
+  Serial.println("Starting "); 
 }
 
 static byte buf_len = 0;
@@ -95,26 +100,11 @@ void ble_write_string(byte *bytes, uint8_t len)
   }  
 }
 
-// not using this but it could be useful so I am keeping for now.
-void sendCustomData(uint8_t *buf, uint8_t len)
-{
-  uint8_t data[20] = "Z";
-  memcpy(&data[1], buf, len);
-  ble_write_string(data, len+1);
-}
-
 void readColors(int start, int readCount) {
   for (byte i = start; i < readCount + start; ++i) {
     colors[i][RED_IDX]   = ble_read();
     colors[i][GREEN_IDX] = ble_read();
     colors[i][BLUE_IDX]  = ble_read();
-//    Serial.print("read color "); 
-//    Serial.print("#");
-//    Serial.print( colors[i][RED_IDX], HEX);
-//    Serial.print("#"); 
-//    Serial.print(colors[i][GREEN_IDX], HEX); 
-//    Serial.print("#"); 
-//    Serial.println(colors[i][BLUE_IDX], HEX);
   }
 }
 void loop()
@@ -143,9 +133,6 @@ void loop()
           Serial.println("too many colors!");
           break;
         }
-//        Serial.print("There are "); 
-//        Serial.print((int)readCount); 
-//        Serial.println(" colors");
         readColors(lightCount, readCount);
         lightCount += readCount;
       }
@@ -158,9 +145,6 @@ void loop()
           Serial.println("too many colors!");
           break;
         }
-//        Serial.print("There are "); 
-//        Serial.print((int)lightCount); 
-//        Serial.println(" colors");
         byte speed = ble_read();
         if (speed == 0) {
           delayMillis = 1000;  // millisecond delay; default 1 second
@@ -169,9 +153,6 @@ void loop()
           delayMillis = speed * 4;
         }
         currentColor = 0;
-//        Serial.print("Delay is "); 
-//        Serial.print( (int)speed); 
-//        Serial.println(".");
         readColors(0, lightCount);
         break;
       }
@@ -189,17 +170,16 @@ void loop()
   // no input or commands, so go ahead and send colors
   // just set the first one.
   // ShiftBrite.
+  if (millis() - last > delayMillis) 
+  {
+    last = millis();
+    if (currentColor != -1) {
+      if (currentColor == lightCount)
+        currentColor = 0;
 
-  if (currentColor != -1) {
-    if (currentColor == lightCount)
-      currentColor = 0;
-//    Serial.print("Updating color "); 
-//    Serial.print(currentColor + 1); 
-//    Serial.println(" ");
-
-    shift.sendColor((unsigned long)colors[currentColor][RED_IDX], (unsigned long)colors[currentColor][GREEN_IDX], (unsigned long)colors[currentColor][BLUE_IDX]);
-    currentColor++;
-    delay(delayMillis);
+     shift.sendColor((unsigned long)colors[currentColor][RED_IDX], (unsigned long)colors[currentColor][GREEN_IDX], (unsigned long)colors[currentColor][BLUE_IDX]);
+     currentColor++;
+    }
   }
 
   // No input data, no commands, process analog data
